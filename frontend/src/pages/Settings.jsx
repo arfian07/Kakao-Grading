@@ -1,6 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useApp } from "../context/AppContext";
-import { initialPrices, formatRupiah } from "../lib/mockData";
 import { toast } from "sonner";
 import {
     Save,
@@ -11,6 +10,9 @@ import {
     Info,
     Quote,
 } from "lucide-react";
+
+const formatRupiah = (n) => "Rp " + Number(n).toLocaleString("id-ID");
+const DEFAULT_PRICES = { mutu_1: 50000, mutu_2: 42000, mutu_3: 33000 };
 
 const QualityBadge = ({ tone, children }) => {
     const tones = {
@@ -110,35 +112,43 @@ const QualityCard = ({
 );
 
 const Settings = () => {
-    const { prices, setPrices, user } = useApp();
+    const { prices, updatePrices, user } = useApp();
     const [draft, setDraft] = useState(prices);
     const [lastUpdate] = useState(() => {
         const stored = localStorage.getItem("kakao_prices_meta");
         if (stored) return JSON.parse(stored);
         return {
-            at: new Date(2026, 1, 8, 9, 45).toISOString(),
+            at: new Date().toISOString(),
             by: user?.name || "Admin Station-01",
         };
     });
 
-    const dirty =
-        draft.mutuI !== prices.mutuI ||
-        draft.mutuII !== prices.mutuII ||
-        draft.mutuIII !== prices.mutuIII;
+    useEffect(() => {
+        setDraft(prices);
+    }, [prices]);
 
-    const handleSave = () => {
-        setPrices(draft);
-        const meta = {
-            at: new Date().toISOString(),
-            by: user?.name || "Admin Station-01",
-        };
-        localStorage.setItem("kakao_prices_meta", JSON.stringify(meta));
-        toast.success("Konfigurasi harga disimpan");
+    const dirty =
+        draft.mutu_1 !== prices.mutu_1 ||
+        draft.mutu_2 !== prices.mutu_2 ||
+        draft.mutu_3 !== prices.mutu_3;
+
+    const handleSave = async () => {
+        try {
+            await updatePrices(draft);
+            const meta = {
+                at: new Date().toISOString(),
+                by: user?.name || "Admin Station-01",
+            };
+            localStorage.setItem("kakao_prices_meta", JSON.stringify(meta));
+            toast.success("Konfigurasi harga disimpan");
+        } catch (e) {
+            toast.error(e?.response?.data?.detail || "Gagal menyimpan");
+        }
     };
 
     const handleReset = () => {
-        setDraft(initialPrices);
-        toast("Direset ke harga default");
+        setDraft(DEFAULT_PRICES);
+        toast("Direset ke harga default — klik Simpan untuk apply");
     };
 
     const updateDate = new Date(lastUpdate.at).toLocaleDateString("id-ID", {
@@ -183,8 +193,8 @@ const Settings = () => {
                             desc="Kadar air < 7%, biji pecah < 1%, fermentasi sempurna."
                             icon={BadgeCheck}
                             iconTone="text-primary"
-                            value={draft.mutuI}
-                            onChange={(v) => setDraft({ ...draft, mutuI: v })}
+                            value={draft.mutu_1}
+                            onChange={(v) => setDraft({ ...draft, mutu_1: v })}
                         />
                         <QualityCard
                             testid="price-mutu-2"
@@ -194,9 +204,9 @@ const Settings = () => {
                             desc="Kadar air 7–9%, biji pecah 2–3%, fermentasi sebagian."
                             icon={BarChart3}
                             iconTone="text-accent"
-                            value={draft.mutuII}
+                            value={draft.mutu_2}
                             onChange={(v) =>
-                                setDraft({ ...draft, mutuII: v })
+                                setDraft({ ...draft, mutu_2: v })
                             }
                         />
                     </div>
@@ -209,8 +219,8 @@ const Settings = () => {
                         desc="Biji kakao dengan kadar air > 9% atau persentase berjamur di atas ambang batas standar."
                         icon={AlertCircle}
                         iconTone="text-red-300"
-                        value={draft.mutuIII}
-                        onChange={(v) => setDraft({ ...draft, mutuIII: v })}
+                        value={draft.mutu_3}
+                        onChange={(v) => setDraft({ ...draft, mutu_3: v })}
                     />
                 </div>
 
@@ -283,10 +293,10 @@ const Settings = () => {
                     </span>{" "}
                     ·{" "}
                     <span className="text-accent font-mono font-semibold">
-                        {formatRupiah(draft.mutuI - draft.mutuIII)}/kg (
+                        {formatRupiah(draft.mutu_1 - draft.mutu_3)}/kg (
                         {Math.round(
-                            ((draft.mutuI - draft.mutuIII) /
-                                Math.max(draft.mutuI, 1)) *
+                            ((draft.mutu_1 - draft.mutu_3) /
+                                Math.max(draft.mutu_1, 1)) *
                                 100
                         )}
                         %)

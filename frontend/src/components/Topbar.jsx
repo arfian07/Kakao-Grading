@@ -27,7 +27,7 @@ const StatusIcon = ({ icon: Icon, label, ok = true, testid }) => (
 );
 
 const Topbar = () => {
-    const { user, activeTrxId, logout } = useApp();
+    const { user, activeTrxId, logout, deviceStatus } = useApp();
     const navigate = useNavigate();
     const [now, setNow] = useState(new Date());
 
@@ -105,13 +105,13 @@ const Topbar = () => {
                     <StatusIcon
                         icon={Cpu}
                         label="ESP32"
-                        ok
+                        ok={!!deviceStatus?.esp_online}
                         testid="status-esp32"
                     />
                     <StatusIcon
                         icon={Radio}
                         label="MQTT"
-                        ok
+                        ok={!!deviceStatus?.mqtt_connected}
                         testid="status-mqtt"
                     />
                 </div>

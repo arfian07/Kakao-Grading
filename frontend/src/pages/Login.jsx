@@ -14,12 +14,12 @@ import {
 import { toast } from "sonner";
 
 const Login = () => {
-    const { login } = useApp();
+    const { login, register } = useApp();
     const navigate = useNavigate();
     const [tab, setTab] = useState("login"); // 'login' | 'register'
 
     // Login
-    const [username, setUsername] = useState("admin");
+    const [username, setUsername] = useState("admin@kakao.id");
     const [password, setPassword] = useState("admin123");
     const [showPwd, setShowPwd] = useState(false);
 
@@ -33,23 +33,27 @@ const Login = () => {
 
     const [loading, setLoading] = useState(false);
 
-    const handleLogin = (e) => {
+    const handleLogin = async (e) => {
         e.preventDefault();
         if (!username || !password) {
-            toast.error("Username & password wajib diisi");
+            toast.error("Email & password wajib diisi");
             return;
         }
         setLoading(true);
-        setTimeout(() => {
-            login(username);
+        try {
+            await login(username, password);
             toast.success("Login berhasil");
             navigate("/");
-        }, 600);
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || "Login gagal");
+        } finally {
+            setLoading(false);
+        }
     };
 
-    const handleRegister = (e) => {
+    const handleRegister = async (e) => {
         e.preventDefault();
-        if (!regName || !regUsername || !regPassword) {
+        if (!regName || !regEmail || !regPassword) {
             toast.error("Lengkapi data registrasi");
             return;
         }
@@ -58,11 +62,20 @@ const Login = () => {
             return;
         }
         setLoading(true);
-        setTimeout(() => {
-            login(regUsername);
-            toast.success(`Akun ${regUsername} dibuat — masuk otomatis`);
+        try {
+            await register({
+                name: regName,
+                email: regEmail,
+                password: regPassword,
+                role: regRole,
+            });
+            toast.success(`Akun ${regEmail} dibuat — masuk otomatis`);
             navigate("/");
-        }, 700);
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || "Registrasi gagal");
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -160,19 +173,19 @@ const Login = () => {
 
                                 <div>
                                     <label className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
-                                        Username
+                                        Email
                                     </label>
                                     <div className="mt-1 relative">
                                         <UserIcon className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
                                         <input
-                                            type="text"
+                                            type="email"
                                             value={username}
                                             onChange={(e) =>
                                                 setUsername(e.target.value)
                                             }
                                             data-testid="login-username-input"
                                             className="w-full h-9 pl-8 pr-3 rounded-md bg-input border border-border text-[12px] focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-                                            placeholder="admin"
+                                            placeholder="admin@kakao.id"
                                         />
                                     </div>
                                 </div>
@@ -228,7 +241,7 @@ const Login = () => {
                                 <div className="text-[10px] text-muted-foreground text-center pt-0.5">
                                     Demo ·{" "}
                                     <span className="text-accent font-mono">
-                                        admin
+                                        admin@kakao.id
                                     </span>
                                     {" / "}
                                     <span className="text-accent font-mono">
