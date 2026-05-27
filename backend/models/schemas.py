@@ -82,6 +82,7 @@ class TransactionCreate(BaseModel):
     black_beans: int = 0
     moldy_beans: int = 0
     image_path: Optional[str] = None
+    annotated_path: Optional[str] = None
     fuzzy_value: float
     grade: str
     estimated_price: float
@@ -99,6 +100,7 @@ class TransactionDetail(BaseModel):
     black_beans: int
     moldy_beans: int
     image_path: Optional[str]
+    annotated_path: Optional[str] = None
     fuzzy_value: float
     grade: str
     estimated_price: float

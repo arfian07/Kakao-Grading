@@ -12,7 +12,7 @@ import logging
 from typing import List, Optional
 from fastapi import WebSocket
 
-from core.config import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC_DATA, MQTT_TOPIC_CONTROL
+from core.config import MQTT_BROKER, MQTT_PORT, MQTT_TOPIC_DATA, MQTT_TOPIC_CONTROL, MQTT_TOPIC_STATUS
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +53,7 @@ class MQTTBridge:
         self.client = None
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.connected = False
+        self.esp_online = False
 
     async def start(self):
         try:
@@ -80,9 +81,11 @@ class MQTTBridge:
         self.connected = True
         logger.info("MQTT connected to %s:%s", MQTT_BROKER, MQTT_PORT)
         client.subscribe(MQTT_TOPIC_DATA)
+        client.subscribe(MQTT_TOPIC_STATUS)
 
     def _on_disconnect(self, client, packet, exc=None):
         self.connected = False
+        self.esp_online = False
         logger.warning("MQTT disconnected")
 
     def _on_message(self, client, topic, payload, qos, properties):
@@ -90,9 +93,20 @@ class MQTTBridge:
             data = payload.decode()
         except Exception:
             return
+
+        if topic == MQTT_TOPIC_STATUS:
+            old_status = self.esp_online
+            self.esp_online = (data.lower() == "online")
+            if old_status != self.esp_online:
+                logger.info("ESP Status changed: %s", "ONLINE" if self.esp_online else "OFFLINE")
+            return
+
+        # Pastikan data diteruskan ke frontend via WebSocket broadcast
         logger.debug("MQTT [%s]: %s", topic, data)
         if self.loop and not self.loop.is_closed():
-            asyncio.run_coroutine_threadsafe(manager.broadcast(data), self.loop)
+            self.loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(manager.broadcast(data))
+            )
 
     def publish_control(self, command: str) -> bool:
         """Publish perintah start/stop/tare ke ESP."""

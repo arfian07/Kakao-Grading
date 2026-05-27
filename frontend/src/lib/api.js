@@ -45,6 +45,8 @@ export const apiListTransactions = () =>
     client.get("/transactions").then((r) => r.data);
 export const apiCreateTransaction = (payload) =>
     client.post("/transactions", payload).then((r) => r.data);
+export const apiBulkDeleteTransactions = (ids) =>
+    client.post("/transactions/bulk-delete", { ids }).then((r) => r.data);
 
 // Device status (ESP/MQTT/Camera)
 export const apiDeviceStatus = () =>

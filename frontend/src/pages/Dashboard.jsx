@@ -19,6 +19,7 @@ import {
     Bug,
     Circle,
     Layers,
+    CheckCircle,
 } from "lucide-react";
 
 const formatRupiah = (n) => "Rp " + Number(n).toLocaleString("id-ID");
@@ -67,6 +68,7 @@ const Dashboard = () => {
 
     const [imgStats, setImgStats] = useState({ total: 0, good: 0, moldy: 0, black: 0, defective: 0 });
     const [imageAnalyzed, setImageAnalyzed] = useState(false);
+    const [pendingFile, setPendingFile] = useState(null); // File hasil upload, menunggu di-analisis
 
     const [fuzzy, setFuzzy] = useState(null);
     const [fuzzyDone, setFuzzyDone] = useState(false);
@@ -111,8 +113,12 @@ const Dashboard = () => {
             setCaptured(true);
             setCapturedPath(res.path);
             setCapturedUrl(`${process.env.REACT_APP_BACKEND_URL}${res.url}`);
+            setPendingFile(null);
+            setAnnotatedUrl(null);
+            setImageAnalyzed(false);
+            setImgStats({ total: 0, good: 0, moldy: 0, black: 0, defective: 0 });
             setCamOn(true);
-            toast.success("Citra berhasil di-capture");
+            toast.success("Citra di-capture — tekan Analisis Citra");
         } catch (err) {
             const msg = err?.response?.data?.detail || err?.message || "Gagal capture";
             toast.error(msg);
@@ -121,23 +127,19 @@ const Dashboard = () => {
         }
     };
 
-    const handleUpload = async (e) => {
+    const handleUpload = (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        setBusy((b) => ({ ...b, image: true }));
-        try {
-            const res = await apiAnalyzeImage(file);
-            setCaptured(true);
-            setCapturedUrl(URL.createObjectURL(file));
-            setCapturedPath(res.image_path);
-            applyImageResult(res);
-            toast.success("Gambar diunggah & dianalisis");
-        } catch (err) {
-            toast.error(err?.response?.data?.detail || "Upload/analisis gagal");
-        } finally {
-            setBusy((b) => ({ ...b, image: false }));
-            e.target.value = "";
-        }
+        // Tampilkan dulu gambar original; analisis hanya saat user klik Analisis Citra
+        setCaptured(true);
+        setCapturedUrl(URL.createObjectURL(file));
+        setCapturedPath(null);
+        setPendingFile(file);
+        setAnnotatedUrl(null);
+        setImageAnalyzed(false);
+        setImgStats({ total: 0, good: 0, moldy: 0, black: 0, defective: 0 });
+        toast.success("Gambar dimuat — tekan Analisis Citra untuk deteksi");
+        e.target.value = "";
     };
 
     const applyImageResult = (res) => {
@@ -155,23 +157,32 @@ const Dashboard = () => {
     };
 
     const handleAnalyzeImage = async () => {
-        if (!capturedPath) {
+        if (!capturedPath && !pendingFile) {
             toast.error("Capture atau upload citra dahulu");
             return;
         }
         setBusy((b) => ({ ...b, image: true }));
         try {
-            const url = `${API_BASE}/analyze/analyze-path?path=${encodeURIComponent(capturedPath)}`;
-            const resp = await fetch(url, { method: "POST" });
-            if (!resp.ok) {
-                const err = await resp.json().catch(() => ({}));
-                throw new Error(err.detail || `HTTP ${resp.status}`);
+            let res;
+            if (pendingFile) {
+                // Flow upload: kirim file langsung ke endpoint /analyze/image
+                res = await apiAnalyzeImage(pendingFile);
+                if (res.image_path) setCapturedPath(res.image_path);
+                setPendingFile(null);
+            } else {
+                // Flow capture: file sudah ada di server, pakai analyze-path
+                const url = `${API_BASE}/analyze/analyze-path?path=${encodeURIComponent(capturedPath)}`;
+                const resp = await fetch(url, { method: "POST" });
+                if (!resp.ok) {
+                    const err = await resp.json().catch(() => ({}));
+                    throw new Error(err.detail || `HTTP ${resp.status}`);
+                }
+                res = await resp.json();
             }
-            const res = await resp.json();
             applyImageResult(res);
             toast.success(`Analisis selesai · ${res.total_beans} biji terdeteksi`);
         } catch (err) {
-            toast.error(err?.message || "Analisis citra gagal");
+            toast.error(err?.message || err?.response?.data?.detail || "Analisis citra gagal");
         } finally {
             setBusy((b) => ({ ...b, image: false }));
         }
@@ -216,6 +227,7 @@ const Dashboard = () => {
                 black_beans: imgStats.black,
                 moldy_beans: imgStats.moldy,
                 image_path: capturedPath,
+                annotated_path: annotatedUrl ? annotatedUrl.split("/").pop() : null,
                 fuzzy_value: fuzzy.fuzzy_value,
                 grade: fuzzy.grade,
                 estimated_price: fuzzy.estimasi_harga_per_kg,
@@ -235,6 +247,7 @@ const Dashboard = () => {
         setCapturedUrl(null);
         setCapturedPath(null);
         setAnnotatedUrl(null);
+        setPendingFile(null);
         setWeight(0);
         setWeightLocked(false);
         setMeasuring(false);
@@ -247,13 +260,65 @@ const Dashboard = () => {
     const beanPer100g = weight > 0 ? Math.round((imgStats.total * 100) / weight) : 0;
     const displayImg = annotatedUrl || capturedUrl;
 
+    // ---- Draggable image (pan) ----
+    const [drag, setDrag] = useState({ x: 0, y: 0, dragging: false, sx: 0, sy: 0 });
+    useEffect(() => {
+        // Reset posisi setiap kali sumber gambar berubah
+        setDrag({ x: 0, y: 0, dragging: false, sx: 0, sy: 0 });
+    }, [displayImg]);
+    const onPointerDown = (e) => {
+        if (!displayImg) return;
+        e.currentTarget.setPointerCapture?.(e.pointerId);
+        setDrag((d) => ({
+            ...d,
+            dragging: true,
+            sx: e.clientX - d.x,
+            sy: e.clientY - d.y,
+        }));
+    };
+    const onPointerMove = (e) => {
+        setDrag((d) =>
+            d.dragging ? { ...d, x: e.clientX - d.sx, y: e.clientY - d.sy } : d
+        );
+    };
+    const endDrag = (e) => {
+        try {
+            e.currentTarget.releasePointerCapture?.(e.pointerId);
+        } catch {}
+        setDrag((d) => ({ ...d, dragging: false }));
+    };
+    const cursorClass = !displayImg
+        ? ""
+        : drag.dragging
+        ? "cursor-grabbing"
+        : "cursor-grab";
+
     return (
         <div className="h-full flex flex-col p-2.5 gap-2.5" data-testid="dashboard-page">
             <div className="flex-1 grid grid-cols-[1fr_300px] gap-2.5 min-h-0">
                 <div className="flex flex-col gap-2 min-h-0">
-                    <div className="relative rounded-lg overflow-hidden border border-border bg-black flex-1" data-testid="camera-preview">
+                    <div
+                        className={`relative rounded-lg overflow-hidden border border-border bg-black flex-1 ${cursorClass} select-none`}
+                        data-testid="camera-preview"
+                        onPointerDown={onPointerDown}
+                        onPointerMove={onPointerMove}
+                        onPointerUp={endDrag}
+                        onPointerCancel={endDrag}
+                        onDoubleClick={() => setDrag({ x: 0, y: 0, dragging: false, sx: 0, sy: 0 })}
+                        title={displayImg ? "Klik & tarik untuk geser · dobel-klik untuk reset" : ""}
+                    >
                         {displayImg ? (
-                            <div className="absolute inset-0" style={{ background: `url('${displayImg}') center/cover` }} />
+                            <img
+                                src={displayImg}
+                                alt="Preview"
+                                className="absolute inset-0 w-full h-full object-cover will-change-transform"
+                                style={{
+                                    objectPosition: `calc(50% + ${drag.x}px) calc(50% + ${drag.y}px)`,
+                                    transition: drag.dragging ? "none" : "object-position 0.18s ease-out",
+                                    pointerEvents: "none",
+                                }}
+                                data-testid="draggable-image-layer"
+                            />
                         ) : camOn ? (
                             <>
                                 <div className="absolute inset-0" style={{ background: "radial-gradient(circle at 50% 50%, hsl(229 35% 18%) 0%, hsl(232 60% 3%) 80%)" }} />
@@ -278,12 +343,37 @@ const Dashboard = () => {
                                 <Circle className={`w-1.5 h-1.5 ${deviceStatus?.camera_ready ? "fill-emerald-400 pulse-dot" : "fill-muted-foreground"}`} />
                                 {deviceStatus?.camera_ready ? "Pi CAM READY" : "Pi CAM OFFLINE"}
                             </div>
-                            {imageAnalyzed && (
+                            {imageAnalyzed && !busy.image && (
                                 <div className="px-1.5 py-0.5 rounded bg-accent/90 text-accent-foreground text-[9px] font-bold tracking-wider uppercase">
                                     Analyzed · {imgStats.total} biji
                                 </div>
                             )}
                         </div>
+
+                        {/* Loading overlay saat sedang analisis citra */}
+                        {busy.image && (
+                            <div
+                                className="absolute inset-0 z-20 analysis-loading-bg flex items-center justify-center"
+                                data-testid="analysis-loading-overlay"
+                            >
+                                <div className="text-center px-4">
+                                    <div className="analysis-ring mx-auto" />
+                                    <div className="mt-3 text-[13px] font-semibold tracking-tight text-foreground">
+                                        Menganalisis citra biji kakao
+                                        <span className="analysis-dots ml-1">
+                                            <span></span>
+                                            <span></span>
+                                            <span></span>
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 text-[10px] text-muted-foreground leading-snug">
+                                        Model AI sedang menghitung jumlah & klasifikasi mutu biji.
+                                        <br />
+                                        Mohon tunggu sebentar.
+                                    </div>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="flex gap-1.5">
@@ -306,7 +396,7 @@ const Dashboard = () => {
                     </div>
 
                     <div className="grid grid-cols-4 gap-1.5">
-                        <ImageStatCard icon={Layers} label="Total" value={imgStats.total || "—"} tone="bg-primary/15 text-primary" />
+                        <ImageStatCard icon={CheckCircle} label="Bagus" value={imgStats.good || "—"} tone="bg-emerald-500/15 text-emerald-400" />
                         <ImageStatCard icon={Bug} label="Berjamur" value={imgStats.moldy || "—"} tone="bg-amber-500/15 text-amber-400" />
                         <ImageStatCard icon={Circle} label="Hitam" value={imgStats.black || "—"} tone="bg-secondary/30 text-red-300" />
                         <ImageStatCard icon={AlertTriangle} label="Rusak" value={imgStats.defective || "—"} tone="bg-destructive/15 text-destructive" />

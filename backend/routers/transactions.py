@@ -1,6 +1,7 @@
 """Transactions CRUD — join transaction + image_analysis + fuzzy_result."""
 from datetime import datetime
 from typing import List
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
 
@@ -9,6 +10,10 @@ from db_models.tables import Transaction, ImageAnalysis, FuzzyResult, Device
 from models.schemas import TransactionCreate, TransactionDetail
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
+
+
+class BulkDeleteRequest(BaseModel):
+    ids: List[int]
 
 
 def _ensure_default_device(db: Session) -> Device:
@@ -35,6 +40,7 @@ def _to_detail(t: Transaction) -> TransactionDetail:
         black_beans=ia.black_beans if ia else 0,
         moldy_beans=ia.moldy_beans if ia else 0,
         image_path=ia.image_path if ia else None,
+        annotated_path=ia.annotated_path if ia else None,
         fuzzy_value=fr.fuzzy_score if fr else 0.0,
         grade=fr.quality_grade if fr else "—",
         estimated_price=float(fr.estimated_price) if fr else 0.0,
@@ -69,6 +75,7 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
         black_beans=payload.black_beans,
         moldy_beans=payload.moldy_beans,
         image_path=payload.image_path,
+        annotated_path=payload.annotated_path,
     )
     fr = FuzzyResult(
         transaction_id=t.id,
@@ -105,3 +112,16 @@ def delete_transaction(trx_id: int, db: Session = Depends(get_db)):
     db.delete(t)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/bulk-delete")
+def bulk_delete(req: BulkDeleteRequest, db: Session = Depends(get_db)):
+    if not req.ids:
+        return {"deleted": 0}
+    deleted = (
+        db.query(Transaction)
+        .filter(Transaction.id.in_(req.ids))
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return {"deleted": deleted}

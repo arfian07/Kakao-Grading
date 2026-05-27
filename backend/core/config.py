@@ -16,6 +16,7 @@ MQTT_BROKER = os.environ.get("MQTT_BROKER", "10.185.226.238")
 MQTT_PORT = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_TOPIC_DATA = os.environ.get("MQTT_TOPIC_DATA", "kakao/weight/data")
 MQTT_TOPIC_CONTROL = os.environ.get("MQTT_TOPIC_CONTROL", "kakao/control")
+MQTT_TOPIC_STATUS = os.environ.get("MQTT_TOPIC_STATUS", "kakao/esp/status")
 
 # YOLO
 ML_MODEL_PATH = ROOT_DIR / "ml_models" / "best.pt"

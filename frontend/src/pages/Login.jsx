@@ -19,8 +19,8 @@ const Login = () => {
     const [tab, setTab] = useState("login"); // 'login' | 'register'
 
     // Login
-    const [username, setUsername] = useState("admin@kakao.id");
-    const [password, setPassword] = useState("admin123");
+    const [username, setUsername] = useState("");
+    const [password, setPassword] = useState("");
     const [showPwd, setShowPwd] = useState(false);
 
     // Register
@@ -237,17 +237,6 @@ const Login = () => {
                                         "Masuk ke Dashboard"
                                     )}
                                 </button>
-
-                                <div className="text-[10px] text-muted-foreground text-center pt-0.5">
-                                    Demo ·{" "}
-                                    <span className="text-accent font-mono">
-                                        admin@kakao.id
-                                    </span>
-                                    {" / "}
-                                    <span className="text-accent font-mono">
-                                        admin123
-                                    </span>
-                                </div>
                             </form>
                         ) : (
                             <form

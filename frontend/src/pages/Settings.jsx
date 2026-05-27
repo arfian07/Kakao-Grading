@@ -32,7 +32,7 @@ const QualityBadge = ({ tone, children }) => {
 
 const PriceInput = ({ value, onChange, testid }) => (
     <div
-        className="relative rounded-md border border-border bg-input/60 h-9 flex items-center"
+        className="relative rounded-md border border-border bg-input/60 h-9 flex items-center overflow-hidden"
         data-testid={`${testid}-wrap`}
     >
         <span className="pl-2.5 text-[10px] font-mono text-muted-foreground">
@@ -43,10 +43,10 @@ const PriceInput = ({ value, onChange, testid }) => (
             value={value}
             onChange={(e) => onChange(parseInt(e.target.value || 0, 10))}
             data-testid={testid}
-            className="flex-1 bg-transparent px-2 text-[13px] font-mono font-semibold focus:outline-none text-foreground"
+            className="flex-1 min-w-0 bg-transparent px-2 text-[13px] font-mono font-semibold focus:outline-none text-foreground"
         />
         <span className="pr-2.5 text-[10px] font-mono text-muted-foreground border-l border-border h-full flex items-center pl-2.5 whitespace-nowrap">
-            /Kg
+            /kg
         </span>
     </div>
 );
@@ -83,7 +83,7 @@ const QualityCard = ({
                 <p className="text-[10px] text-muted-foreground leading-snug flex-1">
                     {desc}
                 </p>
-                <div className="w-[200px]">
+                <div className="w-[200px] shrink-0">
                     <PriceInput
                         value={value}
                         onChange={onChange}

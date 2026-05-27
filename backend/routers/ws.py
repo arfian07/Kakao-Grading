@@ -38,6 +38,6 @@ def device_status():
 
     return {
         "mqtt_connected": mqtt_bridge.connected,
-        "esp_online": mqtt_bridge.connected,  # proxy: kalau MQTT konek anggap ESP online
+        "esp_online": mqtt_bridge.esp_online,
         "camera_ready": cam_ready,
     }
